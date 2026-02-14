@@ -10,4 +10,4 @@ download electricty into your browser
 - i am not responbsile for pc explodsion.
 - it is your fault
 - You will start coughing on October 21, 2029.
-- It will be quick, and painless.
+- It will be quick and painless.
