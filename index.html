@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VoltStream Elite</title>
+    <style>
+        :root {
+            --bg-color: #030303;
+            --accent-color: #00ff88;
+            --text-color: #f0f0f0;
+            --secondary-text: #555;
+            --container-bg: rgba(10, 10, 10, 0.9);
+            --terminal-green: #00ff41;
+            --warning-yellow: #ffcc00;
+            --error-red: #ff4444;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Inter', -apple-system, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            perspective: 1200px;
+        }
+
+        #particle-canvas {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0; opacity: 0; transition: opacity 2s ease;
+            pointer-events: none;
+        }
+
+        /* Failure Overlay */
+        #death-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: black;
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 1.5s ease;
+        }
+
+        #death-screen img {
+            max-width: 80%;
+            border-radius: 10px;
+            box-shadow: 0 0 50px rgba(255, 255, 255, 0.1);
+        }
+
+        #death-text {
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            color: var(--error-red);
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+        }
+
+        .parallax-wrapper {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            max-width: 420px;
+            padding: 20px;
+            transition: transform 0.1s ease-out;
+            transform-style: preserve-3d;
+        }
+
+        .container {
+            text-align: center;
+            background: var(--container-bg);
+            padding: 3rem 2rem;
+            border-radius: 40px;
+            box-shadow: 0 40px 100px rgba(0,0,0,0.9);
+            border: 1px solid rgba(255,255,255,0.05);
+            backdrop-filter: blur(30px);
+            transform-style: preserve-3d;
+            transition: opacity 0.5s ease;
+        }
+
+        h1 { font-weight: 200; letter-spacing: 8px; margin: 0; text-transform: uppercase; font-size: 1.2rem; transform: translateZ(60px); }
+        .connection-status { font-family: 'Courier New', monospace; font-size: 0.6rem; margin: 10px 0 35px 0; color: var(--secondary-text); display: flex; justify-content: center; align-items: center; gap: 12px; transform: translateZ(40px); }
+        .ping-dot { height: 6px; width: 6px; border-radius: 50%; background-color: var(--terminal-green); box-shadow: 0 0 8px currentColor; }
+        .telemetry { display: none; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 2rem; font-family: 'Courier New', monospace; background: rgba(0,0,0,0.4); padding: 20px; border-radius: 24px; border: 1px solid #1a1a1a; transform: translateZ(30px); }
+        .stat-box { text-align: left; }
+        .stat-label { color: var(--secondary-text); font-size: 0.55rem; display: block; }
+        .stat-value { color: var(--terminal-green); font-size: 0.95rem; font-weight: bold; }
+        p#status-text { color: var(--accent-color); font-size: 0.65rem; font-family: 'Courier New', monospace; margin-bottom: 1.5rem; letter-spacing: 1px; transform: translateZ(40px); text-transform: uppercase; }
+        .progress-container { width: 100%; height: 2px; background: #111; margin-bottom: 2rem; overflow: hidden; display: none; transform: translateZ(50px); }
+        .progress-bar { width: 0%; height: 100%; background: var(--accent-color); box-shadow: 0 0 15px var(--accent-color); }
+        .btn { background: transparent; color: var(--text-color); border: 1px solid #333; padding: 1.2rem; border-radius: 100px; font-weight: 500; cursor: pointer; transition: all 0.3s ease; width: 100%; text-transform: uppercase; letter-spacing: 2px; transform: translateZ(70px); }
+        .btn:hover { border-color: var(--accent-color); color: var(--accent-color); box-shadow: 0 0 20px rgba(0,255,136,0.1); }
+
+        /* Glitch Animation */
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-5px, 5px); }
+            40% { transform: translate(-5px, -5px); }
+            60% { transform: translate(5px, 5px); }
+            80% { transform: translate(5px, -5px); }
+            100% { transform: translate(0); }
+        }
+        .overload { animation: glitch 0.1s infinite; filter: hue-rotate(90deg) contrast(200%); }
+    </style>
+</head>
+<body>
+
+<canvas id="particle-canvas"></canvas>
+
+<div id="death-screen">
+    <img src="https://i.imgur.com/fY0jn9k.gif" alt="explosion">
+    <div id="death-text">electricity overloaded. rip</div>
+</div>
+
+<div class="parallax-wrapper" id="scene">
+    <div class="container" id="main-ui">
+        <h1>VoltStream</h1>
+        
+        <div class="connection-status">
+            <span>NODE: <span id="grid-id" style="color: #888;">...</span></span>
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <span class="ping-dot" id="ping-color"></span>
+                <span id="ping-val">0ms</span>
+            </div>
+        </div>
+
+        <p id="status-text">SYSTEM STANDBY</p>
+
+        <div class="telemetry" id="telemetry">
+            <div class="stat-box">
+                <span class="stat-label">Potential</span>
+                <span class="stat-value" id="volts">0.0V</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Flux</span>
+                <span class="stat-value" id="amps">0.00A</span>
+            </div>
+            <div class="stat-box" style="grid-column: span 2;">
+                <span class="stat-label">Electron Cache</span>
+                <span class="stat-value" id="electrons">0</span>
+            </div>
+        </div>
+        
+        <div class="progress-container" id="prog-container">
+            <div class="progress-bar" id="prog-bar"></div>
+        </div>
+
+        <button class="btn" id="start-btn" onclick="startDownload()">Establish Link</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('particle-canvas');
+    const ctx = canvas.getContext('2d');
+    const mainUI = document.getElementById('main-ui');
+    const deathScreen = document.getElementById('death-screen');
+    const statusText = document.getElementById('status-text');
+    const progBar = document.getElementById('prog-bar');
+    const startBtn = document.getElementById('start-btn');
+    const telemetry = document.getElementById('telemetry');
+    const voltEl = document.getElementById('volts');
+    const ampEl = document.getElementById('amps');
+    const electronEl = document.getElementById('electrons');
+
+    // --- 1. Connectivity ---
+    const gridIdEl = document.getElementById('grid-id');
+    const pingValEl = document.getElementById('ping-val');
+    const pingDotEl = document.getElementById('ping-color');
+    gridIdEl.innerText = `GRD-${Math.random().toString(36).substring(2,5).toUpperCase()}`;
+
+    function fluctuatePing() {
+        const ping = Math.floor(Math.random() * 80 + 20);
+        pingValEl.innerText = `${ping}ms`;
+        pingValEl.style.color = "var(--terminal-green)";
+        pingDotEl.style.backgroundColor = "var(--terminal-green)";
+        setTimeout(fluctuatePing, 2000);
+    }
+    fluctuatePing();
+
+    // --- 2. Parallax ---
+    document.addEventListener('mousemove', (e) => {
+        let xAxis = (window.innerWidth / 2 - e.pageX) / 25;
+        let yAxis = (window.innerHeight / 2 - e.pageY) / 25;
+        document.getElementById('scene').style.transform = `rotateY(${xAxis}deg) rotateX(${yAxis}deg)`;
+    });
+
+    // --- 3. Particles ---
+    let particles = [];
+    let animationActive = false;
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    class Particle {
+        constructor() { this.reset(); }
+        reset() {
+            const theta = Math.random() * Math.PI * 2;
+            const distance = Math.max(canvas.width, canvas.height) * (0.6 + Math.random() * 0.5);
+            this.x = canvas.width / 2 + Math.cos(theta) * distance;
+            this.y = canvas.height / 2 + Math.sin(theta) * distance;
+            this.size = Math.random() * 2;
+            this.speed = Math.random() * 4 + 2;
+            this.opacity = 0;
+        }
+        update() {
+            const dx = canvas.width / 2 - this.x;
+            const dy = canvas.height / 2 - this.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            this.x += (dx / distance) * this.speed;
+            this.y += (dy / distance) * this.speed;
+            this.opacity = distance > 100 ? Math.min(this.opacity + 0.02, 0.5) : this.opacity - 0.05;
+            if (distance < 10 || this.opacity <= 0) this.reset();
+        }
+        draw() {
+            ctx.fillStyle = `rgba(0, 255, 136, ${this.opacity})`;
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+
+    function animate() {
+        if (!animationActive) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => { p.update(); p.draw(); });
+        requestAnimationFrame(animate);
+    }
+
+    // --- 4. Final Download Sequence ---
+    const stages = [
+        { p: 0, t: "Opening containment..." },
+        { p: 25, t: "Downloading packets..." },
+        { p: 50, t: "Stabilizing voltage..." },
+        { p: 80, t: "Finalizing sync..." },
+        { p: 95, t: "WARNING: SURGE DETECTED" }
+    ];
+
+    function startDownload() {
+        animationActive = true;
+        canvas.style.opacity = "1";
+        for (let i = 0; i < 100; i++) particles.push(new Particle());
+        animate();
+
+        startBtn.style.display = 'none';
+        document.getElementById('prog-container').style.display = 'block';
+        telemetry.style.display = 'grid';
+        
+        let progress = 0;
+        let electronCount = 0;
+
+        const timer = setInterval(() => {
+            progress += 0.5; // Faster for testing, change to 0.166 for 1 min
+            
+            if (progress < 100) {
+                voltEl.innerText = (230 + (Math.random() * 5)).toFixed(1) + "V";
+                ampEl.innerText = (1.0 + (Math.random())).toFixed(2) + "A";
+                electronCount += Math.floor(Math.random() * 1000000);
+                electronEl.innerText = electronCount.toLocaleString();
+                
+                const currentStage = stages.findLast(s => progress >= s.p);
+                statusText.innerText = currentStage.t;
+                if(progress > 95) statusText.style.color = "var(--error-red)";
+            }
+
+            if (progress >= 100) {
+                clearInterval(timer);
+                triggerOverload();
+            }
+            progBar.style.width = progress + '%';
+        }, 100);
+    }
+
+    function triggerOverload() {
+        // Step 1: Glitch the UI
+        mainUI.classList.add('overload');
+        
+        // Step 2: Fade to black
+        setTimeout(() => {
+            mainUI.style.opacity = "0";
+            canvas.style.opacity = "0";
+            
+            // Step 3: Show death screen
+            setTimeout(() => {
+                deathScreen.style.display = 'flex';
+                setTimeout(() => {
+                    deathScreen.style.opacity = "1";
+                }, 100);
+            }, 1000);
+        }, 1500);
+    }
+</script>
+
+</body>
+</html>
